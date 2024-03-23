@@ -1,0 +1,232 @@
+openapi: 3.0.0
+info:
+  title: Sound Library API
+  description: API to manage a sound library
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Local server
+paths:
+  /admin/sounds:
+    post:
+      summary: Create sounds
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      title:
+                        $ref: "#/components/schemas/title"
+                      bpm:
+                        $ref: "#/components/schemas/bpm"
+                      genres:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/genre"
+                      duration_in_seconds:
+                        $ref: "#/components/schemas/durationInSeconds"
+                      credits:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/credit"
+              required:
+                - data
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/sound"
+        '400':
+          $ref: "#/components/responses/400"
+        '500':
+          $ref: "#/components/responses/500"
+  /sounds:
+    get:
+      summary: Get sounds
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/sound"
+        "404":
+          $ref: "#/components/responses/404"
+        "500":
+          $ref: "#/components/responses/500"
+  /playlists:
+    post:
+      summary: Create playlist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      title:
+                        type: string
+                        example: "New playlist"
+                      sounds:
+                        type: array
+                        items:
+                          type: string
+                          example: "{{soundId}}"
+              required:
+                - data
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/playlist"
+        '400':
+          $ref: "#/components/responses/400"
+        '500':
+          $ref: "#/components/responses/500"
+  /sounds/recommended:
+    get:
+      summary: Get recommended sounds based on a playlist ID
+      parameters:
+        - in: query
+          name: playlistId
+          schema:
+            type: string
+          required: true
+          description: ID of the playlist to get recommendations for
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/sound"
+        '500':
+          $ref: "#/components/responses/500"
+components:
+  responses:
+    "400":
+      description: Bad request.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              detail:
+                type: string
+            required:
+              - detail
+    "404":
+      description: Not found.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              detail:
+                type: string
+            required:
+              - detail
+    "500":
+      description: Internal server error.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              detail:
+                type: string
+            required:
+              - detail
+  schemas:
+    sound:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/id"
+        title:
+          $ref: "#/components/schemas/title"
+        bpm:
+          $ref: "#/components/schemas/bpm"
+        genres:
+          type: array
+          items:
+            $ref: "#/components/schemas/genre"
+        duration_in_seconds:
+          $ref: "#/components/schemas/durationInSeconds"
+        credits:
+          type: array
+          items:
+            type: object
+            $ref: "#/components/schemas/credit"
+      required:
+        - id
+        - title
+        - bpm
+        - genres
+        - duration_in_seconds
+        - credits
+    id:
+      type: string
+      description: "The id of the entity."
+    title:
+      type: string
+      description: "Title of the entity."
+    bpm:
+      type: integer
+      description: "Bpm."
+    genre:
+      type: string
+      description: "Genre of the entity."
+    durationInSeconds:
+      type: integer
+      description: "Duration in seconds."
+    credit:
+      type: object
+      properties:
+        name:
+          $ref: "#/components/schemas/name"
+        role:
+          $ref: "#/components/schemas/role"
+    name:
+      type: string
+      description: "Name of the entity."
+    role:
+      type: string
+      description: "Role of the entity."
+    playlist:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/id"
+        title:
+          $ref: "#/components/schemas/title"
+        sounds:
+          type: array
+          items:
+            type: object
+            $ref: "#/components/schemas/sound"
