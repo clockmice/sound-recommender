@@ -10,7 +10,7 @@ import (
 )
 
 type RestController struct {
-	dbClient db.Service
+	DBClient db.Service
 }
 
 var _ api.StrictServerInterface = (*RestController)(nil)
@@ -50,6 +50,8 @@ func (r RestController) PostAdminSounds(ctx context.Context, request api.PostAdm
 		soundsMap[id] = sound
 		created = append(created, sound)
 	}
+
+	r.DBClient.CreateSound(ctx, created)
 
 	return api.PostAdminSounds201JSONResponse{Data: &created}, nil
 }
@@ -93,5 +95,5 @@ func (r RestController) GetSoundsRecommended(ctx context.Context, request api.Ge
 	for _, sound := range *playlistsMap[playlistId].Sounds {
 		genrePopular = append(genrePopular, sound.Genres...)
 	}
-
+	return nil, nil
 }

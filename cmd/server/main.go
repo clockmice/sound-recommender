@@ -18,7 +18,7 @@ func main() {
 	port := flag.String("port", "8080", "Port for HTTP server")
 	flag.Parse()
 
-	dbClient, err := db.New("sound_recommender")
+	dbClient, err := db.New("./sound_recommender.db")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -40,7 +40,11 @@ func createServer(port string, dbClient db.Service) *http.Server {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
-	handler := api.NewStrictHandler(&svc.RestController{dbClient: dbClient}, nil)
+	restController := svc.RestController{
+		DBClient: dbClient,
+	}
+
+	handler := api.NewStrictHandler(&restController, nil)
 	api.HandlerFromMux(handler, r)
 
 	return &http.Server{
