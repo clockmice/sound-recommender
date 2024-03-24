@@ -5,10 +5,13 @@ import (
 	"time"
 
 	api "github.com/clockmice/sound-recommender/gen"
+	"github.com/clockmice/sound-recommender/internal/db"
 	"github.com/google/uuid"
 )
 
-type RestController struct{}
+type RestController struct {
+	dbClient db.Service
+}
 
 var _ api.StrictServerInterface = (*RestController)(nil)
 
@@ -84,6 +87,11 @@ func (r RestController) PostPlaylists(ctx context.Context, request api.PostPlayl
 }
 
 func (r RestController) GetSoundsRecommended(ctx context.Context, request api.GetSoundsRecommendedRequestObject) (api.GetSoundsRecommendedResponseObject, error) {
-	// TODO implement me
-	panic("implement me")
+	playlistId := request.Params.PlaylistId
+	var genrePopular = []string{}
+
+	for _, sound := range *playlistsMap[playlistId].Sounds {
+		genrePopular = append(genrePopular, sound.Genres...)
+	}
+
 }

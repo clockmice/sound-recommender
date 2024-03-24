@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	api "github.com/clockmice/sound-recommender/gen"
+	db "github.com/clockmice/sound-recommender/internal/db"
 	svc "github.com/clockmice/sound-recommender/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -17,12 +18,17 @@ func main() {
 	port := flag.String("port", "8080", "Port for HTTP server")
 	flag.Parse()
 
-	s := createServer(*port)
+	dbClient, err := db.New("sound_recommender")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	s := createServer(*port, dbClient)
 
 	log.Fatal(s.ListenAndServe())
 }
 
-func createServer(port string) *http.Server {
+func createServer(port string, dbClient db.Service) *http.Server {
 	swag, err := api.GetSwagger()
 	if err != nil {
 		log.Fatalf("failed to load swagger spec, err: %v", err)
@@ -34,7 +40,7 @@ func createServer(port string) *http.Server {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
-	handler := api.NewStrictHandler(&svc.RestController{}, nil)
+	handler := api.NewStrictHandler(&svc.RestController{dbClient: dbClient}, nil)
 	api.HandlerFromMux(handler, r)
 
 	return &http.Server{
