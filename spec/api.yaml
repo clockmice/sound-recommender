@@ -63,9 +63,12 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/sound"
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/sound"
         "404":
           $ref: "#/components/responses/404"
         "500":
@@ -101,7 +104,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/playlist"
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/playlist"
         '400':
           $ref: "#/components/responses/400"
         '500':
@@ -183,6 +191,10 @@ components:
           items:
             type: object
             $ref: "#/components/schemas/credit"
+        createdAt:
+          $ref: "#/components/schemas/createdAt"
+        updatedAt:
+          $ref: "#/components/schemas/updatedAt"
       required:
         - id
         - title
@@ -190,6 +202,8 @@ components:
         - genres
         - duration_in_seconds
         - credits
+        - createdAt
+        - updatedAt
     id:
       type: string
       description: "The id of the entity."
@@ -212,6 +226,14 @@ components:
           $ref: "#/components/schemas/name"
         role:
           $ref: "#/components/schemas/role"
+    createdAt:
+      type: string
+      format: date-time
+      description: "The time the entity was created (UTC) ISO8601."
+    updatedAt:
+      type: string
+      format: date-time
+      description: "The time the entity was updated (UTC) ISO8601."
     name:
       type: string
       description: "Name of the entity."
@@ -230,3 +252,7 @@ components:
           items:
             type: object
             $ref: "#/components/schemas/sound"
+        createdAt:
+          $ref: "#/components/schemas/createdAt"
+        updatedAt:
+          $ref: "#/components/schemas/updatedAt"

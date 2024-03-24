@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
@@ -24,6 +25,9 @@ import (
 
 // Bpm Bpm.
 type Bpm = int
+
+// CreatedAt The time the entity was created (UTC) ISO8601.
+type CreatedAt = time.Time
 
 // Credit defines model for credit.
 type Credit struct {
@@ -48,12 +52,18 @@ type Name = string
 
 // Playlist defines model for playlist.
 type Playlist struct {
+	// CreatedAt The time the entity was created (UTC) ISO8601.
+	CreatedAt *CreatedAt `json:"createdAt,omitempty"`
+
 	// Id The id of the entity.
 	Id     *Id      `json:"id,omitempty"`
 	Sounds *[]Sound `json:"sounds,omitempty"`
 
 	// Title Title of the entity.
 	Title *Title `json:"title,omitempty"`
+
+	// UpdatedAt The time the entity was updated (UTC) ISO8601.
+	UpdatedAt *UpdatedAt `json:"updatedAt,omitempty"`
 }
 
 // Role Role of the entity.
@@ -62,8 +72,11 @@ type Role = string
 // Sound defines model for sound.
 type Sound struct {
 	// Bpm Bpm.
-	Bpm     Bpm      `json:"bpm"`
-	Credits []Credit `json:"credits"`
+	Bpm Bpm `json:"bpm"`
+
+	// CreatedAt The time the entity was created (UTC) ISO8601.
+	CreatedAt CreatedAt `json:"createdAt"`
+	Credits   []Credit  `json:"credits"`
 
 	// DurationInSeconds Duration in seconds.
 	DurationInSeconds DurationInSeconds `json:"duration_in_seconds"`
@@ -74,10 +87,16 @@ type Sound struct {
 
 	// Title Title of the entity.
 	Title Title `json:"title"`
+
+	// UpdatedAt The time the entity was updated (UTC) ISO8601.
+	UpdatedAt UpdatedAt `json:"updatedAt"`
 }
 
 // Title Title of the entity.
 type Title = string
+
+// UpdatedAt The time the entity was updated (UTC) ISO8601.
+type UpdatedAt = time.Time
 
 // N400 defines model for 400.
 type N400 struct {
@@ -533,9 +552,11 @@ func (r PostAdminSoundsResponse) StatusCode() int {
 type PostPlaylistsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON201      *Playlist
-	JSON400      *N400
-	JSON500      *N500
+	JSON201      *struct {
+		Data *[]Playlist `json:"data,omitempty"`
+	}
+	JSON400 *N400
+	JSON500 *N500
 }
 
 // Status returns HTTPResponse.Status
@@ -557,9 +578,11 @@ func (r PostPlaylistsResponse) StatusCode() int {
 type GetSoundsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *[]Sound
-	JSON404      *N404
-	JSON500      *N500
+	JSON200      *struct {
+		Data *[]Sound `json:"data,omitempty"`
+	}
+	JSON404 *N404
+	JSON500 *N500
 }
 
 // Status returns HTTPResponse.Status
@@ -710,7 +733,9 @@ func ParsePostPlaylistsResponse(rsp *http.Response) (*PostPlaylistsResponse, err
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest Playlist
+		var dest struct {
+			Data *[]Playlist `json:"data,omitempty"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -750,7 +775,9 @@ func ParseGetSoundsResponse(rsp *http.Response) (*GetSoundsResponse, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest []Sound
+		var dest struct {
+			Data *[]Sound `json:"data,omitempty"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -1127,7 +1154,9 @@ type PostPlaylistsResponseObject interface {
 	VisitPostPlaylistsResponse(w http.ResponseWriter) error
 }
 
-type PostPlaylists201JSONResponse Playlist
+type PostPlaylists201JSONResponse struct {
+	Data *[]Playlist `json:"data,omitempty"`
+}
 
 func (response PostPlaylists201JSONResponse) VisitPostPlaylistsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -1161,7 +1190,9 @@ type GetSoundsResponseObject interface {
 	VisitGetSoundsResponse(w http.ResponseWriter) error
 }
 
-type GetSounds200JSONResponse []Sound
+type GetSounds200JSONResponse struct {
+	Data *[]Sound `json:"data,omitempty"`
+}
 
 func (response GetSounds200JSONResponse) VisitGetSoundsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -1374,21 +1405,22 @@ func (sh *strictHandler) GetSoundsRecommended(w http.ResponseWriter, r *http.Req
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/+xXXa/bNgz9KwK3RyN2tzug8NvtLnBhrOiC3r0VQaFYTKLCllSJ6RYE/u+DpPgjsZuk",
-	"SzHkoU9x5EOROjwU6T2UujZaoSIH+R4sOqOVw/DnIcv8T6kVoSL/yI2pZMlJapV+clr5NVdusOb+yVht",
-	"0JKM1gKJy8o/0c4g5ODISrWGpknA4uettCgg/9DiFkmL08tPWBI0HijQlVYa7xByeMMF86boaAZNAg/Z",
-	"w30F+E4TW+mtEiG83+6Nv0IRWsUr5tB+QcvQWm1nYccYRXC8NHX0f0S9qWfQuZCKcI3WH7K0KCSNw1e8",
-	"Rv/7s8UV5PBT2gstPThLA8YfR1cXsQHjIz05ZQJiawOjhXrBUivhxtE/HSBMKuYiaPo0a1QWx/bPfpnp",
-	"FaMNMlQkaTewbxOTgBRj2782yKS4wrhl7ERSvL7Gs6n4rpJuIhExpnPUSuF3cF630YKwdpeMAhz6fHBr",
-	"+S78l3Q5mxE0mc5WDMc0vNfVNTTEqEYcHCR9LiIP6eR8PQ0H+U/w0Mryo1QfXS/Mc5uNldxK8vqAooIn",
-	"4rlWB9+Yv+FVJAW09kngvIt+mo6e7sWEELpATurJL1+Ugg9NqpUe2z/OC0aa1VzxNTLOgmRYJZeW210X",
-	"fw4vYf1tXGeP8wIS+ILWxV1ezbJZ5qPUBhU3EnL4NSwlYDhtQppSLmqp0r6wjI4F6qUZEy0gh7l29OiR",
-	"LxEYOUVHb7TY3dJAOPEj2fyoie99Vx3vd9qYPf/TbbmHkd1iWBjMXb9kr75n2v/DLd5cMUz8bpETijiH",
-	"ZV9z1B0s9aB+KDqP9aAwlWzr2ldl640dasm/S9uWd6G05h3sfyqsiUaK//DahFtlvw+vC9E0U/3rqwLt",
-	"d3iHf7Ou2ycTw+GdqvScDLvz3IvOBgElMLjB1zihsmekwdV9RNG3fQDcVLIj4v78Y/CNdImzhxs4e0Y6",
-	"Ksz4nFosdV2jEiguU/d+APYt1PIaCa2D/MNpAy+e2u7fZsn38zUS6zwGB46ttAU/BkAOn7cYunscsrtx",
-	"uRBwqvNkkJDT4lrcYYJvSNogQ4cEsiV3KJhWjPfsFk/Re/xqnErJW112X5WQwNZWkMOGyORpWvl3G+0o",
-	"f529zqBZNP8GAAD//6vKJcR1EAAA",
+	"H4sIAAAAAAAC/9xY32/bNhD+V4jbHjZAs5QtGwK9pQ0QCCvaoOmeiqBgxLPNQiJZ8tzOMPS/DyStH7YV",
+	"W6uLou2TZfojj/fd953P3kCpa6MVKnKQb8CiM1o5DG8us8y/lFoRKvKP3JhKlpykVul7p5Vfc+USa+6f",
+	"jNUGLcm4WyBxWfknWhuEHBxZqRbQNAlY/LCSFgXkb1vcQ9Li9ON7LAkaDxToSiuNDwg5POOC+a3oaAZN",
+	"ApfZ5bd1wZea2FyvlAjX+/Nb469QhFbxijm0H9EytFbbWTgx3iIEfjR1jL9Dvaln0IWQinCB1idZWuSE",
+	"4poO97xZIiNZI6MlMlQkac0+cce2W9gv/7x5/isr7l9d/ZVd+NPn2tacIAfBCX/zW/uQbfYhopB0SJji",
+	"NfrXny3OIYef0l7a6Ta9NGA8gbo6iQ0Yz80erwmIlQ01LNQ9lloJd5j7zRbCpGIugsb5W6CyeLj/1i8z",
+	"PR9wNxsjQ4px3qWYsLllbE/EvJ4S2VR8XUk3UogdSRxjuAd2mRyDS+FxzvsrxJGEtTu1KcChryK3lq/D",
+	"e0mnNRBBTQIrI6bl1ANHpdMKb5fy17qaQnnM5YDvrWGP3cpD9s06uTLRcNMp3xp0hPPWOO+keud66xw7",
+	"7NBrrWmmXyh6bOQ+UzX3VbQybOpSQBs1CfXtch4nsS/SsMjDqzyMiLFLa69/+OUJctzJc1rr3275vNbv",
+	"SZJqrg/DXd8VjDSrueILZJwFo7BKPlpu1x2TOdyH9RdxnV3fFZDAR7QunnIxy2aZT0wbVNxIyOGPsJSA",
+	"4bQMMku5qKVK+yZkdGyB3pBRqAJyuNOOrj3yPgJjddHRMy3W5wwFnPiO7M/oBD+op/+PV8c69O55+8OW",
+	"53981OphZFcYFgaz9O/ZxZcs+2d84zUTBsTnsXXE2Tp7KlCXWOpB/aB7HOtBYdJc1bV3ZRuNbb3kP0vb",
+	"oeKEte462Fcy1sjQgf/y2oSustmEjwvRNGNt8kmB9ie8xE+sm6eSkYH/x1Npl+73I9T+yl6qvSQWOCLT",
+	"W6RB79/hOPsOOsGrvwc/sE9xe3kGt7dIOx0gPqcWS13XqASK0xS/HoD9d7XlNRJaB/nb/UmhuGkHm7aa",
+	"fnBYILEuYgjg2Fxb8PMG5PBhhWGMiL+Xul8+hYB9QyWDwu27+OFMIZxV8icKfEbRBhXaFpA9coeCacV4",
+	"z25xE6PHvxzGSvJCl91fEn5ktRXksCQyeZpW/rOldpRfZVcZNA/NfwEAAP//wz5+N7ISAAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
