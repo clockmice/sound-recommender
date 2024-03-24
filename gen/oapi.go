@@ -227,6 +227,9 @@ type ClientInterface interface {
 
 	PostAdminSounds(ctx context.Context, body PostAdminSoundsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetPlaylists request
+	GetPlaylists(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// PostPlaylistsWithBody request with any body
 	PostPlaylistsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -253,6 +256,18 @@ func (c *Client) PostAdminSoundsWithBody(ctx context.Context, contentType string
 
 func (c *Client) PostAdminSounds(ctx context.Context, body PostAdminSoundsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostAdminSoundsRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetPlaylists(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetPlaylistsRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -347,6 +362,33 @@ func NewPostAdminSoundsRequestWithBody(server string, contentType string, body i
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetPlaylistsRequest generates requests for GetPlaylists
+func NewGetPlaylistsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/playlists")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -511,6 +553,9 @@ type ClientWithResponsesInterface interface {
 
 	PostAdminSoundsWithResponse(ctx context.Context, body PostAdminSoundsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostAdminSoundsResponse, error)
 
+	// GetPlaylistsWithResponse request
+	GetPlaylistsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetPlaylistsResponse, error)
+
 	// PostPlaylistsWithBodyWithResponse request with any body
 	PostPlaylistsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostPlaylistsResponse, error)
 
@@ -543,6 +588,32 @@ func (r PostAdminSoundsResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r PostAdminSoundsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetPlaylistsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Data *[]Playlist `json:"data,omitempty"`
+	}
+	JSON404 *N404
+	JSON500 *N500
+}
+
+// Status returns HTTPResponse.Status
+func (r GetPlaylistsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetPlaylistsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -604,8 +675,10 @@ func (r GetSoundsResponse) StatusCode() int {
 type GetSoundsRecommendedResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *[]Sound
-	JSON500      *N500
+	JSON200      *struct {
+		Data *[]Sound `json:"data,omitempty"`
+	}
+	JSON500 *N500
 }
 
 // Status returns HTTPResponse.Status
@@ -639,6 +712,15 @@ func (c *ClientWithResponses) PostAdminSoundsWithResponse(ctx context.Context, b
 		return nil, err
 	}
 	return ParsePostAdminSoundsResponse(rsp)
+}
+
+// GetPlaylistsWithResponse request returning *GetPlaylistsResponse
+func (c *ClientWithResponses) GetPlaylistsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetPlaylistsResponse, error) {
+	rsp, err := c.GetPlaylists(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetPlaylistsResponse(rsp)
 }
 
 // PostPlaylistsWithBodyWithResponse request with arbitrary body returning *PostPlaylistsResponse
@@ -705,6 +787,48 @@ func ParsePostAdminSoundsResponse(rsp *http.Response) (*PostAdminSoundsResponse,
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest N500
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetPlaylistsResponse parses an HTTP response from a GetPlaylistsWithResponse call
+func ParseGetPlaylistsResponse(rsp *http.Response) (*GetPlaylistsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetPlaylistsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Data *[]Playlist `json:"data,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest N404
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest N500
@@ -817,7 +941,9 @@ func ParseGetSoundsRecommendedResponse(rsp *http.Response) (*GetSoundsRecommende
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest []Sound
+		var dest struct {
+			Data *[]Sound `json:"data,omitempty"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -840,6 +966,9 @@ type ServerInterface interface {
 	// Create sounds
 	// (POST /admin/sounds)
 	PostAdminSounds(w http.ResponseWriter, r *http.Request)
+	// Get playlists
+	// (GET /playlists)
+	GetPlaylists(w http.ResponseWriter, r *http.Request)
 	// Create playlist
 	// (POST /playlists)
 	PostPlaylists(w http.ResponseWriter, r *http.Request)
@@ -858,6 +987,12 @@ type Unimplemented struct{}
 // Create sounds
 // (POST /admin/sounds)
 func (_ Unimplemented) PostAdminSounds(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get playlists
+// (GET /playlists)
+func (_ Unimplemented) GetPlaylists(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -894,6 +1029,21 @@ func (siw *ServerInterfaceWrapper) PostAdminSounds(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostAdminSounds(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// GetPlaylists operation middleware
+func (siw *ServerInterfaceWrapper) GetPlaylists(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPlaylists(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1085,6 +1235,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/admin/sounds", wrapper.PostAdminSounds)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/playlists", wrapper.GetPlaylists)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/playlists", wrapper.PostPlaylists)
 	})
 	r.Group(func(r chi.Router) {
@@ -1140,6 +1293,42 @@ func (response PostAdminSounds400JSONResponse) VisitPostAdminSoundsResponse(w ht
 type PostAdminSounds500JSONResponse struct{ N500JSONResponse }
 
 func (response PostAdminSounds500JSONResponse) VisitPostAdminSoundsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPlaylistsRequestObject struct {
+}
+
+type GetPlaylistsResponseObject interface {
+	VisitGetPlaylistsResponse(w http.ResponseWriter) error
+}
+
+type GetPlaylists200JSONResponse struct {
+	Data *[]Playlist `json:"data,omitempty"`
+}
+
+func (response GetPlaylists200JSONResponse) VisitGetPlaylistsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPlaylists404JSONResponse struct{ N404JSONResponse }
+
+func (response GetPlaylists404JSONResponse) VisitGetPlaylistsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPlaylists500JSONResponse struct{ N500JSONResponse }
+
+func (response GetPlaylists500JSONResponse) VisitGetPlaylistsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -1227,7 +1416,9 @@ type GetSoundsRecommendedResponseObject interface {
 	VisitGetSoundsRecommendedResponse(w http.ResponseWriter) error
 }
 
-type GetSoundsRecommended200JSONResponse []Sound
+type GetSoundsRecommended200JSONResponse struct {
+	Data *[]Sound `json:"data,omitempty"`
+}
 
 func (response GetSoundsRecommended200JSONResponse) VisitGetSoundsRecommendedResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -1250,6 +1441,9 @@ type StrictServerInterface interface {
 	// Create sounds
 	// (POST /admin/sounds)
 	PostAdminSounds(ctx context.Context, request PostAdminSoundsRequestObject) (PostAdminSoundsResponseObject, error)
+	// Get playlists
+	// (GET /playlists)
+	GetPlaylists(ctx context.Context, request GetPlaylistsRequestObject) (GetPlaylistsResponseObject, error)
 	// Create playlist
 	// (POST /playlists)
 	PostPlaylists(ctx context.Context, request PostPlaylistsRequestObject) (PostPlaylistsResponseObject, error)
@@ -1314,6 +1508,30 @@ func (sh *strictHandler) PostAdminSounds(w http.ResponseWriter, r *http.Request)
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostAdminSoundsResponseObject); ok {
 		if err := validResponse.VisitPostAdminSoundsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetPlaylists operation middleware
+func (sh *strictHandler) GetPlaylists(w http.ResponseWriter, r *http.Request) {
+	var request GetPlaylistsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetPlaylists(ctx, request.(GetPlaylistsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetPlaylists")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetPlaylistsResponseObject); ok {
+		if err := validResponse.VisitGetPlaylistsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -1405,22 +1623,23 @@ func (sh *strictHandler) GetSoundsRecommended(w http.ResponseWriter, r *http.Req
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
+	"AQAA///nkiWQLhQAAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

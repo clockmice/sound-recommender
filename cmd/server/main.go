@@ -39,6 +39,6 @@ func createServer(port string) *http.Server {
 
 	return &http.Server{
 		Handler: r,
-		Addr:    net.JoinHostPort("127.0.0.1", port),
+		Addr:    net.JoinHostPort("0.0.0.0", port),
 	}
 }
